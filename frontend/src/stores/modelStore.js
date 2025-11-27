@@ -29,7 +29,8 @@ export const useModelStore = defineStore('model', () => {
     
     try {
       const data = await getActiveModels()
-      models.value = data || []
+      // 只保留聊天模型，过滤掉 OCR 模型
+      models.value = (data || []).filter(m => m.model_type !== 'ocr')
       lastFetchTime.value = now
       
       // 如果还没选择模型，自动选择第一个可用的

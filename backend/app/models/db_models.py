@@ -1,6 +1,6 @@
 """数据库模型"""
 
-from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey, Boolean, Float
+from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey, Boolean, Float, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -43,7 +43,7 @@ class Conversation(Base):
     
     # 关系
     user = relationship("User", back_populates="conversations")
-    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.timestamp")
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
     
     def __repr__(self):
         return f"<Conversation(id={self.id}, user_id={self.user_id}, title={self.title})>"
@@ -57,13 +57,20 @@ class Message(Base):
     conversation_id = Column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(String(20), nullable=False)  # user, assistant, system
     content = Column(Text, nullable=False)
-    timestamp = Column(DateTime, default=datetime.now, nullable=False)
+    
+    # OCR 相关字段
+    message_type = Column(String(20), default="text", nullable=False)  # text, ocr, image
+    file_url = Column(String(500), nullable=True)  # 文件存储路径
+    file_name = Column(String(255), nullable=True)  # 原始文件名
+    ocr_mode = Column(String(50), nullable=True)  # markdown, general, free_ocr, chart, describe, locate
+    
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
     
     # 关系
     conversation = relationship("Conversation", back_populates="messages")
     
     def __repr__(self):
-        return f"<Message(id={self.id}, role={self.role}, content={self.content[:50]}...)>"
+        return f"<Message(id={self.id}, role={self.role}, type={self.message_type})>"
     
     def to_dict(self):
         """转换为字典"""
@@ -71,7 +78,11 @@ class Message(Base):
             "id": self.id,
             "role": self.role,
             "content": self.content,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None
+            "message_type": self.message_type,
+            "file_url": self.file_url,
+            "file_name": self.file_name,
+            "ocr_mode": self.ocr_mode,
+            "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
 
@@ -82,6 +93,7 @@ class ModelConfig(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), unique=True, nullable=False, index=True)  # 展示名称，例如 "GPT-4"
     model = Column(String(100), nullable=False)  # 模型标识，例如 "gpt-4", "deepseek-chat"
+    model_type = Column(String(20), default="chat", nullable=False)  # chat, ocr, embedding
     api_base = Column(String(255), nullable=False)  # API 地址
     api_key_encrypted = Column(Text, nullable=False)  # 加密后的 API Key
     description = Column(Text, nullable=True)  # 模型描述
@@ -137,6 +149,10 @@ class ModelConfig(Base):
 class SuggestionRecord(Base):
     """推荐问题记录表"""
     __tablename__ = "suggestion_records"
+    __table_args__ = (
+        # 添加唯一约束：同一用户不能有相同标题的推荐
+        UniqueConstraint('user_id', 'title', name='uq_user_title'),
+    )
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)

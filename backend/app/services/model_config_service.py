@@ -221,6 +221,7 @@ class ModelConfigService:
             id=config.id,
             name=config.name,
             model=config.model,
+            model_type=config.model_type,
             api_base=config.api_base,
             api_key_masked=masked_key,
             description=config.description,

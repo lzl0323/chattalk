@@ -81,7 +81,8 @@ async def generate_stream(
     db: AsyncSession,
     config: ModelConfig,
     conversation_id: str,
-    user_message: str
+    user_message: str,
+    current_user
 ):
     """生成流式响应（使用 OpenAI 客户端）"""
     try:
@@ -145,7 +146,7 @@ async def generate_stream(
             from ..services.suggestion_service import SuggestionService
             suggestions = await SuggestionService.get_fallback_suggestions(
                 db=db,
-                user_id=config.user_id,
+                user_id=current_user.id,
                 count=3  # 对话中只显示3个推荐
             )
             
@@ -213,7 +214,7 @@ async def chat(
         # 流式响应
         if request.stream:
             return StreamingResponse(
-                generate_stream(db, config, conversation_id, request.message),
+                generate_stream(db, config, conversation_id, request.message, current_user),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -292,7 +293,7 @@ async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_
             {
                 "role": msg.role,
                 "content": msg.content,
-                "timestamp": msg.timestamp.isoformat()
+                "timestamp": msg.created_at.isoformat()
             }
             for msg in conversation.messages
         ],

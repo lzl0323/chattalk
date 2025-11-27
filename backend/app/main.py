@@ -12,6 +12,7 @@ from .api.auth import router as auth_router
 from .api.conversations import router as conversations_router
 from .api.model_configs import router as model_configs_router
 from .api.suggestions import router as suggestions_router
+from .api.ocr import router as ocr_router
 from .services.kimi import kimi_service
 
 # 配置日志
@@ -68,6 +69,7 @@ app.include_router(auth_router)
 app.include_router(conversations_router)
 app.include_router(model_configs_router)
 app.include_router(suggestions_router)
+app.include_router(ocr_router)
 app.include_router(chat_router)
 
 

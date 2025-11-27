@@ -292,17 +292,41 @@ class SuggestionService:
             suggestions: 推荐问题列表
         """
         try:
+            saved_count = 0
             for suggestion in suggestions:
+                # 检查是否已存在相同标题的记录
+                title = suggestion.get("title", "")
+                if not title:
+                    continue
+                
+                # 查询是否已存在
+                result = await db.execute(
+                    select(SuggestionRecord).where(
+                        and_(
+                            SuggestionRecord.user_id == user_id,
+                            SuggestionRecord.title == title
+                        )
+                    )
+                )
+                existing = result.scalar_one_or_none()
+                
+                if existing:
+                    # 已存在，跳过
+                    logger.debug(f"Skipping duplicate suggestion: {title}")
+                    continue
+                
+                # 不存在，插入新记录
                 record = SuggestionRecord(
                     user_id=user_id,
                     suggestion_type=suggestion.get("type", "general"),
-                    title=suggestion.get("title", ""),
+                    title=title,
                     icon=suggestion.get("icon", "bolt")
                 )
                 db.add(record)
+                saved_count += 1
             
             await db.commit()
-            logger.info(f"Saved {len(suggestions)} suggestions for user {user_id}")
+            logger.info(f"Saved {saved_count}/{len(suggestions)} new suggestions for user {user_id}")
         except Exception as e:
             logger.error(f"Failed to save suggestions: {e}")
             await db.rollback()

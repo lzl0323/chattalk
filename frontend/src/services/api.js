@@ -428,3 +428,69 @@ export async function getFallbackSuggestions(count = 6) {
     ].slice(0, count)
   }
 }
+
+// ==================== OCR 相关 API ====================
+
+/**
+ * OCR API 封装
+ */
+export const ocrAPI = {
+  /**
+   * 上传文件进行 OCR 识别
+   * @param {File} file - 文件对象
+   * @param {string} ocrMode - OCR 模式
+   * @param {number} conversationId - 对话 ID
+   * @param {number} modelId - 模型 ID（可选）
+   */
+  async uploadFile(file, ocrMode = 'markdown', conversationId = null, modelId = null) {
+    // 如果没有提供 conversationId，从 chatStore 获取
+    if (!conversationId) {
+      const { useChatStore } = await import('@/stores/chatStore')
+      const chatStore = useChatStore()
+      conversationId = chatStore.currentConversation?.id
+      
+      if (!conversationId) {
+        // 自动创建新对话
+        const newConv = await chatStore.createConversation()
+        conversationId = newConv.id
+        
+        if (!conversationId) {
+          throw new Error('Failed to create conversation')
+        }
+      }
+    }
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('conversation_id', conversationId)
+    formData.append('ocr_mode', ocrMode)
+    
+    if (modelId) {
+      formData.append('model_id', modelId)
+    }
+
+    const response = await apiClient.post('/ocr/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    return response.data
+  },
+
+  /**
+   * 获取可用的 OCR 模型列表
+   */
+  async getModels() {
+    const response = await apiClient.get('/ocr/models')
+    return response.data
+  },
+
+  /**
+   * 获取支持的 OCR 模式列表
+   */
+  async getModes() {
+    const response = await apiClient.get('/ocr/modes')
+    return response.data
+  }
+}

@@ -40,6 +40,7 @@ class ChatRequest(BaseModel):
         return v.strip()
     
     class Config:
+        protected_namespaces = ()  # 禁用 model_ 命名空间保护
         json_schema_extra = {
             "example": {
                 "message": "你好，请介绍一下 FastAPI",
@@ -354,6 +355,7 @@ class ModelConfigCreate(BaseModel):
         return v.rstrip('/')
     
     class Config:
+        protected_namespaces = ()  # 禁用 model_ 命名空间保护
         json_schema_extra = {
             "example": {
                 "name": "GPT-4",
@@ -384,6 +386,9 @@ class ModelConfigUpdate(BaseModel):
         if v and not v.startswith(('http://', 'https://')):
             raise ValueError('API 地址必须以 http:// 或 https:// 开头')
         return v.rstrip('/') if v else v
+    
+    class Config:
+        protected_namespaces = ()  # 禁用 model_ 命名空间保护
 
 
 class ModelConfigOut(BaseModel):
@@ -391,6 +396,7 @@ class ModelConfigOut(BaseModel):
     id: int
     name: str
     model: str
+    model_type: str = Field(default="chat", description="模型类型: chat, ocr, embedding")
     api_base: str
     api_key_masked: str = Field(..., description="遮蔽后的 API Key")
     description: Optional[str]
@@ -405,6 +411,7 @@ class ModelConfigOut(BaseModel):
     
     class Config:
         from_attributes = True
+        protected_namespaces = ()  # 禁用 model_ 命名空间保护
         json_schema_extra = {
             "example": {
                 "id": 1,

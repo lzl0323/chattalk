@@ -248,7 +248,10 @@ const isAdmin = computed(() => authStore.user?.is_admin || false)
 const createNewChat = async () => {
   try {
     await chatStore.createConversation()
-    emit('close')
+    // 只在移动端（屏幕宽度 < 1024px）时关闭侧边栏
+    if (window.innerWidth < 1024) {
+      emit('close')
+    }
     router.push('/')
   } catch (error) {
     showToast?.('创建对话失败', 'error')
@@ -258,7 +261,10 @@ const createNewChat = async () => {
 const selectConversation = async (id) => {
   try {
     await chatStore.loadConversation(id)
-    emit('close')
+    // 只在移动端（屏幕宽度 < 1024px）时关闭侧边栏
+    if (window.innerWidth < 1024) {
+      emit('close')
+    }
     router.push('/')
   } catch (error) {
     showToast?.('加载对话失败', 'error')
@@ -280,6 +286,26 @@ const renameConversation = (conversation) => {
 
 const deleteConversation = (conversation) => {
   if (confirm(`确定要删除对话"${conversation.title || '新对话'}"吗？`)) {
+    // 如果是临时对话（id 为 null），直接从本地删除
+    if (!conversation.id || conversation.id === 'null') {
+      const index = chatStore.conversations.findIndex(c => c === conversation)
+      if (index > -1) {
+        chatStore.conversations.splice(index, 1)
+        // 如果删除的是当前对话，切换到第一个对话或清空
+        if (chatStore.currentConversation === conversation) {
+          if (chatStore.conversations.length > 0) {
+            chatStore.loadConversation(chatStore.conversations[0].id)
+          } else {
+            chatStore.currentConversation = null
+            chatStore.messages = []
+          }
+        }
+        showToast?.('删除成功', 'success')
+      }
+      return
+    }
+    
+    // 真实对话，调用后端 API 删除
     chatStore.deleteConversation(conversation.id)
       .then(() => {
         showToast?.('删除成功', 'success')

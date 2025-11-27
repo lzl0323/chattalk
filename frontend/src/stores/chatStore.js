@@ -42,21 +42,32 @@ export const useChatStore = defineStore('chat', () => {
    * 创建新对话
    */
   const createConversation = async () => {
-    // 创建临时的新对话
-    const newConv = {
-      id: null, // 后端会在第一条消息时创建
-      title: '新对话',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      messages: []
+    try {
+      // 调用后端 API 创建真实对话
+      const { createConversation: apiCreateConversation } = await import('@/services/api')
+      const newConv = await apiCreateConversation('新对话')
+      
+      // 添加到列表顶部
+      conversations.value.unshift(newConv)
+      currentConversation.value = newConv
+      messages.value = []
+      
+      return newConv
+    } catch (error) {
+      console.error('Failed to create conversation:', error)
+      // 如果后端失败，创建临时对话作为备选
+      const tempConv = {
+        id: null,
+        title: '新对话',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        messages: []
+      }
+      conversations.value.unshift(tempConv)
+      currentConversation.value = tempConv
+      messages.value = []
+      return tempConv
     }
-    
-    // 添加到列表顶部
-    conversations.value.unshift(newConv)
-    currentConversation.value = newConv
-    messages.value = []
-    
-    return newConv
   }
 
   /**

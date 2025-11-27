@@ -87,3 +87,19 @@ class EncryptionService:
 
 # 全局加密服务实例
 encryption_service = EncryptionService()
+
+
+# 辅助函数（向后兼容）
+def encrypt_api_key(api_key: str) -> str:
+    """加密 API Key"""
+    return encryption_service.encrypt(api_key)
+
+
+def decrypt_api_key(encrypted_key: str) -> str:
+    """解密 API Key"""
+    return encryption_service.decrypt(encrypted_key)
+
+
+def mask_api_key(api_key: str, show_chars: int = 4) -> str:
+    """遮蔽 API Key"""
+    return EncryptionService.mask_api_key(api_key, show_chars)

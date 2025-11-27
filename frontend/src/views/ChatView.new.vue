@@ -184,16 +184,11 @@
         <!-- 输入框容器 -->
         <div class="relative bg-white dark:bg-gpt-dark-800 rounded-3xl shadow-lg dark:shadow-2xl border border-gray-200 dark:border-gpt-dark-600">
           <div class="flex items-end gap-2 p-3">
-            <!-- 附件按钮 -->
-            <button
-              class="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gpt-dark-600 transition-colors opacity-40"
-              title="上传文件（即将推出）"
-              disabled
-            >
-              <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-              </svg>
-            </button>
+            <!-- 文件上传组件 -->
+            <FileUpload 
+              @upload-success="handleFileUpload"
+              @upload-error="handleFileUploadError"
+            />
             
             <!-- 输入框 -->
             <div class="flex-1 relative">
@@ -211,7 +206,8 @@
                        placeholder-gray-400 dark:placeholder-gray-500
                        focus:outline-none
                        disabled:opacity-50
-                       transition-all"
+                       transition-all
+                       custom-scrollbar"
                 style="max-height: 200px; min-height: 24px;"
               ></textarea>
             </div>
@@ -262,6 +258,7 @@ import { useChatStore } from '@/stores/chatStore'
 import { useModelStore } from '@/stores/modelStore'
 import { getSuggestions, chatStream } from '@/services/api'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
+import FileUpload from '@/components/chat/FileUpload.vue'
 
 // Stores
 const chatStore = useChatStore()
@@ -542,6 +539,92 @@ const loadInitialSuggestions = async () => {
   }
 }
 
+// OCR 文件上传成功处理
+const handleFileUpload = async (result) => {
+  console.log('File uploaded successfully:', result)
+  
+  // 刷新消息列表 - 重新加载当前对话，显示上传的图片
+  if (chatStore.currentConversation?.id) {
+    await chatStore.loadConversation(chatStore.currentConversation.id)
+  }
+  
+  // 滚动到底部
+  await nextTick()
+  scrollToBottom()
+  
+  // 将 OCR 识别的内容静默发送给聊天模型（不显示原始 OCR 内容）
+  if (result.content_markdown) {
+    console.log('OCR content received, sending to chat model silently...')
+    
+    // 稍微延迟一下，确保页面完全渲染完毕
+    setTimeout(async () => {
+      // 准备 AI 回复消息槽位
+      const assistantIndex = chatStore.messages.length
+      chatStore.messages.push({
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        isStreaming: true
+      })
+      
+      isLoading.value = true
+      
+      // 直接调用流式 API，将 OCR 内容作为消息发送
+      cancelStream.value = chatStream(
+        result.content_markdown,  // OCR 识别的内容
+        chatStore.currentConversation?.id,
+        selectedModelId.value,
+        // onChunk
+        (chunk) => {
+          const msg = chatStore.messages[assistantIndex]
+          if (msg) {
+            msg.content += chunk
+            scrollToBottom()
+          }
+        },
+        // onDone
+        (data) => {
+          const msg = chatStore.messages[assistantIndex]
+          if (msg) {
+            msg.isStreaming = false
+            
+            // 更新对话 ID（如果是新对话）
+            if (data.conversation_id && !chatStore.currentConversation?.id) {
+              chatStore.currentConversation.id = data.conversation_id
+              
+              const index = chatStore.conversations.findIndex(c => c.id === null)
+              if (index !== -1) {
+                chatStore.conversations[index].id = data.conversation_id
+              }
+            }
+          }
+          
+          isLoading.value = false
+          cancelStream.value = null
+          scrollToBottom()
+        },
+        // onError
+        (error) => {
+          console.error('Stream error:', error)
+          const msg = chatStore.messages[assistantIndex]
+          if (msg) {
+            msg.isStreaming = false
+            msg.content = '抱歉，发生了错误：' + (error.message || '未知错误')
+          }
+          
+          isLoading.value = false
+          cancelStream.value = null
+        }
+      )
+    }, 100)
+  }
+}
+
+// OCR 文件上传失败处理
+const handleFileUploadError = (error) => {
+  console.error('File upload failed:', error)
+}
+
 // 初始化
 onMounted(async () => {
   // 加载模型列表
@@ -575,5 +658,42 @@ onMounted(async () => {
 .slide-down-leave-to {
   transform: translateY(-100%);
   opacity: 0;
+}
+
+/* 自定义滚动条样式 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* 深色模式 */
+:deep(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+:deep(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+:deep(.dark) .custom-scrollbar {
+  scrollbar-color: #4b5563 transparent;
 }
 </style>

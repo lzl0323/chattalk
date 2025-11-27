@@ -140,7 +140,7 @@ async def get_conversation(
     msg_result = await db.execute(
         select(DBMessage)
         .where(DBMessage.conversation_id == conversation_id)
-        .order_by(DBMessage.timestamp)
+        .order_by(DBMessage.created_at)
     )
     messages = msg_result.scalars().all()
     
@@ -149,7 +149,7 @@ async def get_conversation(
         Message(
             role=msg.role,
             content=msg.content,
-            timestamp=msg.timestamp
+            timestamp=msg.created_at
         )
         for msg in messages
     ]
@@ -202,7 +202,7 @@ async def update_conversation(
     msg_result = await db.execute(
         select(DBMessage)
         .where(DBMessage.conversation_id == conversation_id)
-        .order_by(DBMessage.timestamp)
+        .order_by(DBMessage.created_at)
     )
     messages = msg_result.scalars().all()
     
@@ -210,7 +210,7 @@ async def update_conversation(
         Message(
             role=msg.role,
             content=msg.content,
-            timestamp=msg.timestamp
+            timestamp=msg.created_at
         )
         for msg in messages
     ]
@@ -309,5 +309,5 @@ async def create_message(
     return Message(
         role=new_message.role,
         content=new_message.content,
-        timestamp=new_message.timestamp
+        timestamp=new_message.created_at
     )

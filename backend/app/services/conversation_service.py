@@ -69,7 +69,7 @@ class ConversationService:
         limit: Optional[int] = None
     ) -> List[Message]:
         """获取对话的所有消息"""
-        query = select(Message).where(Message.conversation_id == conversation_id).order_by(Message.timestamp)
+        query = select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)
         
         if limit:
             query = query.limit(limit)
