@@ -1,0 +1,19 @@
+name: kimitalk
+channels:
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - --index-url https://pypi.tuna.tsinghua.edu.cn/simple
+      - fastapi==0.104.1
+      - uvicorn[standard]==0.24.0
+      - httpx==0.25.1
+      - python-dotenv==1.0.0
+      - pydantic==2.5.0
+      - pydantic-settings==2.1.0
+      - python-multipart==0.0.6
+      - sqlalchemy==2.0.23
+      - aiosqlite==0.19.0
+      - alembic==1.13.0

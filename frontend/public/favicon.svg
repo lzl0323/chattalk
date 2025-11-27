@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 背景渐变 -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 圆形背景 -->
+  <circle cx="32" cy="32" r="30" fill="url(#grad)"/>
+  
+  <!-- AI 聊天气泡图标 -->
+  <!-- 左侧气泡 (用户) -->
+  <rect x="12" y="18" width="20" height="12" rx="3" fill="#ffffff" opacity="0.9"/>
+  <polygon points="12,24 8,27 12,27" fill="#ffffff" opacity="0.9"/>
+  
+  <!-- 右侧气泡 (AI) -->
+  <rect x="32" y="34" width="20" height="12" rx="3" fill="#ffffff" opacity="0.9"/>
+  <polygon points="52,40 56,43 52,43" fill="#ffffff" opacity="0.9"/>
+  
+  <!-- AI 星星装饰 -->
+  <circle cx="42" cy="40" r="1.5" fill="#667eea"/>
+  <circle cx="38" cy="38" r="1" fill="#764ba2"/>
+</svg>

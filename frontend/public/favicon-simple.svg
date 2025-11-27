@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 简化版本 - 更适合小尺寸显示 -->
+  <rect width="32" height="32" rx="6" fill="#667eea"/>
+  
+  <!-- 聊天气泡 -->
+  <path d="M8 10 h12 a2 2 0 0 1 2 2 v6 a2 2 0 0 1 -2 2 h-8 l-4 3 v-3 a2 2 0 0 1 -2 -2 v-6 a2 2 0 0 1 2 -2 z" 
+        fill="#ffffff"/>
+  
+  <!-- AI 点 -->
+  <circle cx="11" cy="15" r="1" fill="#667eea"/>
+  <circle cx="14" cy="15" r="1" fill="#667eea"/>
+  <circle cx="17" cy="15" r="1" fill="#667eea"/>
+</svg>

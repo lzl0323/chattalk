@@ -1,0 +1,279 @@
+<template>
+  <div
+    :class="[
+      'flex gap-4',
+      message.role === 'user' ? 'justify-end' : 'justify-start'
+    ]"
+  >
+    <!-- AI 头像 -->
+    <div
+      v-if="message.role === 'assistant'"
+      class="w-8 h-8 rounded-full bg-gpt-green-500 flex items-center justify-center flex-shrink-0"
+    >
+      <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+      </svg>
+    </div>
+    
+    <!-- 消息内容 -->
+    <div :class="['flex flex-col gap-2', message.role === 'user' ? 'items-end' : 'items-start', 'max-w-[75%]']">
+      <!-- 气泡 -->
+      <div
+        :class="[
+          'rounded-2xl px-4 py-3',
+          message.role === 'user'
+            ? 'bg-gpt-gray-100 dark:bg-gpt-dark-500 text-gray-900 dark:text-gray-100'
+            : 'bg-transparent text-gray-900 dark:text-gray-100'
+        ]"
+      >
+        <!-- 用户消息（纯文本） -->
+        <div v-if="message.role === 'user'" class="whitespace-pre-wrap break-words">
+          {{ message.content }}
+        </div>
+        
+        <!-- AI 消息（Markdown 渲染） -->
+        <div
+          v-else
+          class="markdown-body prose dark:prose-dark max-w-none"
+          v-html="renderedContent"
+        ></div>
+        
+        <!-- 流式输入光标 -->
+        <span v-if="isStreaming" class="inline-block w-2 h-4 ml-1 bg-gpt-green-500 animate-pulse"></span>
+      </div>
+      
+      <!-- 操作按钮（仅 AI 消息） -->
+      <div
+        v-if="message.role === 'assistant' && !isStreaming"
+        class="flex items-center gap-2 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <button
+          @click="$emit('copy')"
+          class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gpt-dark-600 transition-colors"
+          title="复制"
+        >
+          <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </button>
+        
+        <button
+          @click="$emit('regenerate')"
+          class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gpt-dark-600 transition-colors"
+          title="重新生成"
+        >
+          <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+        
+        <button
+          @click="$emit('delete')"
+          class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+          title="删除"
+        >
+          <svg class="w-4 h-4 text-red-500 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+      
+      <!-- 时间戳 -->
+      <span class="text-xs text-gray-400 dark:text-gray-500 px-2">
+        {{ formatTime(message.timestamp) }}
+      </span>
+    </div>
+    
+    <!-- 用户头像 -->
+    <div
+      v-if="message.role === 'user'"
+      class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0"
+    >
+      <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed } from 'vue'
+import { marked } from 'marked'
+import hljs from 'highlight.js/lib/core'
+// 导入常用语言
+import javascript from 'highlight.js/lib/languages/javascript'
+import python from 'highlight.js/lib/languages/python'
+import java from 'highlight.js/lib/languages/java'
+import cpp from 'highlight.js/lib/languages/cpp'
+import sql from 'highlight.js/lib/languages/sql'
+import json from 'highlight.js/lib/languages/json'
+import xml from 'highlight.js/lib/languages/xml'
+import css from 'highlight.js/lib/languages/css'
+import 'highlight.js/styles/atom-one-dark.css'
+
+// 注册语言
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('java', java)
+hljs.registerLanguage('cpp', cpp)
+hljs.registerLanguage('sql', sql)
+hljs.registerLanguage('json', json)
+hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('css', css)
+
+// Props
+const props = defineProps({
+  message: {
+    type: Object,
+    required: true
+  },
+  isStreaming: {
+    type: Boolean,
+    default: false
+  }
+})
+
+// Emits
+defineEmits(['copy', 'regenerate', 'delete'])
+
+// 配置 marked
+marked.setOptions({
+  highlight: (code, lang) => {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return hljs.highlight(code, { language: lang }).value
+      } catch (err) {
+        console.error('Highlight error:', err)
+      }
+    }
+    return hljs.highlightAuto(code).value
+  },
+  breaks: true,
+  gfm: true
+})
+
+// 渲染 Markdown
+const renderedContent = computed(() => {
+  if (props.message.role === 'assistant') {
+    try {
+      return marked.parse(props.message.content || '')
+    } catch (error) {
+      console.error('Markdown parse error:', error)
+      return props.message.content
+    }
+  }
+  return props.message.content
+})
+
+// 格式化时间
+const formatTime = (timestamp) => {
+  if (!timestamp) return ''
+  
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diff = now - date
+  
+  // 小于 1 分钟
+  if (diff < 60000) {
+    return '刚刚'
+  }
+  
+  // 小于 1 小时
+  if (diff < 3600000) {
+    return `${Math.floor(diff / 60000)} 分钟前`
+  }
+  
+  // 小于 24 小时
+  if (diff < 86400000) {
+    return `${Math.floor(diff / 3600000)} 小时前`
+  }
+  
+  // 显示具体时间
+  return date.toLocaleString('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+</script>
+
+<style>
+/* Markdown 样式 */
+.markdown-body {
+  @apply text-gray-900 dark:text-gray-100;
+}
+
+.markdown-body p {
+  @apply mb-4 leading-relaxed;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  @apply font-semibold mt-6 mb-4;
+}
+
+.markdown-body h1 {
+  @apply text-2xl;
+}
+
+.markdown-body h2 {
+  @apply text-xl;
+}
+
+.markdown-body h3 {
+  @apply text-lg;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  @apply ml-6 mb-4 space-y-2;
+}
+
+.markdown-body li {
+  @apply leading-relaxed;
+}
+
+.markdown-body code {
+  @apply px-1.5 py-0.5 rounded bg-gpt-gray-100 dark:bg-gpt-dark-600 text-sm font-mono;
+}
+
+.markdown-body pre {
+  @apply my-4 rounded-lg overflow-x-auto bg-gpt-dark-800;
+}
+
+.markdown-body pre code {
+  @apply block p-4 bg-transparent text-gray-100;
+}
+
+.markdown-body blockquote {
+  @apply pl-4 border-l-4 border-gray-300 dark:border-gpt-dark-400 text-gray-600 dark:text-gray-400 italic my-4;
+}
+
+.markdown-body table {
+  @apply w-full border-collapse my-4;
+}
+
+.markdown-body th,
+.markdown-body td {
+  @apply border border-gray-300 dark:border-gpt-dark-400 px-4 py-2;
+}
+
+.markdown-body th {
+  @apply bg-gpt-gray-50 dark:bg-gpt-dark-600 font-semibold;
+}
+
+.markdown-body a {
+  @apply text-gpt-green-500 hover:underline;
+}
+
+.markdown-body strong {
+  @apply font-semibold;
+}
+
+.markdown-body em {
+  @apply italic;
+}
+</style>
