@@ -82,3 +82,6 @@ nginx/logs/
 *.temp
 temp/
 tmp/
+
+# Documentation (local only)
+docs/
