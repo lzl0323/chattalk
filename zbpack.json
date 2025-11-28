@@ -1,0 +1,25 @@
+{
+  "name": "chattalk",
+  "services": [
+    {
+      "name": "backend",
+      "path": "backend",
+      "type": "python",
+      "buildCommand": "pip install -r requirements.txt",
+      "startCommand": "python -m app.core.init_db && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}",
+      "env": {
+        "DATABASE_URL": "sqlite:///./chattalk.db",
+        "ALGORITHM": "HS256",
+        "ACCESS_TOKEN_EXPIRE_MINUTES": "10080"
+      }
+    },
+    {
+      "name": "frontend",
+      "path": "frontend",
+      "type": "nodejs",
+      "buildCommand": "npm install && npm run build",
+      "outputDirectory": "dist",
+      "installCommand": "npm install"
+    }
+  ]
+}

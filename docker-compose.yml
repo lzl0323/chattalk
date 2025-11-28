@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./chattalk.db
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=10080
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+      - OCR_API_BASE=${OCR_API_BASE}
+      - OCR_API_KEY=${OCR_API_KEY}
+      - OCR_MODEL=${OCR_MODEL:-Pro/Qwen/Qwen2-VL-7B-Instruct}
+    volumes:
+      - ./backend/app/uploads:/app/app/uploads
+      - ./backend/chattalk.db:/app/chattalk.db
+    restart: unless-stopped
+    networks:
+      - chattalk-network
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    restart: unless-stopped
+    networks:
+      - chattalk-network
+
+networks:
+  chattalk-network:
+    driver: bridge
+
+volumes:
+  uploads:
+  database:

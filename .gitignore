@@ -89,3 +89,6 @@ docs/
 # OCR Uploads (用户上传的文件)
 backend/app/uploads/
 backend/uploads/
+
+# Docker
+docker-compose.override.yml
