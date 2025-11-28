@@ -3,7 +3,7 @@
  * 管理对话列表、消息、流式输入等聊天相关功能
  */
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { 
   getConversations as apiGetConversations,
   getConversation as apiGetConversation,
@@ -18,6 +18,13 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref([])
   const isStreaming = ref(false)
   const isLoading = ref(false)
+  
+  // 监听当前对话变化，保存到 localStorage
+  watch(currentConversation, (newConv) => {
+    if (newConv?.id) {
+      localStorage.setItem('lastConversationId', newConv.id)
+    }
+  })
   const searchQuery = ref('')
 
   /**
@@ -230,6 +237,23 @@ export const useChatStore = defineStore('chat', () => {
     searchQuery.value = ''
   }
 
+  /**
+   * 恢复上次打开的对话
+   */
+  const restoreLastConversation = async () => {
+    const lastConversationId = localStorage.getItem('lastConversationId')
+    if (lastConversationId && lastConversationId !== 'null') {
+      try {
+        await loadConversation(lastConversationId)
+        console.log('Restored last conversation:', lastConversationId)
+      } catch (error) {
+        console.warn('Failed to restore last conversation:', error)
+        // 如果恢复失败，清除存储的 ID
+        localStorage.removeItem('lastConversationId')
+      }
+    }
+  }
+
   // Getters
   const filteredConversations = computed(() => {
     if (!searchQuery.value) {
@@ -270,5 +294,6 @@ export const useChatStore = defineStore('chat', () => {
     addMessage,
     clearMessages,
     reset,
+    restoreLastConversation,
   }
 })

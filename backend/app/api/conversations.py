@@ -149,7 +149,11 @@ async def get_conversation(
         Message(
             role=msg.role,
             content=msg.content,
-            timestamp=msg.created_at
+            timestamp=msg.created_at,
+            message_type=msg.message_type,
+            file_url=msg.file_url,
+            file_name=msg.file_name,
+            ocr_mode=msg.ocr_mode
         )
         for msg in messages
     ]

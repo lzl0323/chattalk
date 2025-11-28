@@ -26,9 +26,54 @@
             : 'bg-transparent text-gray-900 dark:text-gray-100'
         ]"
       >
-        <!-- 用户消息（纯文本） -->
-        <div v-if="message.role === 'user'" class="whitespace-pre-wrap break-words">
-          {{ message.content }}
+        <!-- 用户消息 -->
+        <div v-if="message.role === 'user'">
+          <!-- 文件消息 -->
+          <div v-if="message.message_type === 'image' && message.file_url" class="file-message">
+            <!-- PDF 文件 -->
+            <div v-if="isPDF(message.file_name)" class="pdf-file-display">
+              <div class="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer"
+                   @click="openFile(message.file_url)">
+                <!-- PDF 图标 -->
+                <div class="flex-shrink-0">
+                  <svg class="w-10 h-10 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18.5,9H13V3.5L18.5,9M6,20V4H12V10H18V20H6M7.5,13H9.5V15H11V18H9.5V16.5H7.5V18H6V13H7.5V13M10.5,13H13.5C14.3,13 15,13.7 15,14.5V16.5C15,17.3 14.3,18 13.5,18H10.5V13M12,16.5H13.5V14.5H12V16.5M16.5,13H18V15H19.5V13H21V18H19.5V16.5H16.5V18H15V13H16.5V13Z"/>
+                  </svg>
+                </div>
+                <!-- 文件信息 -->
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {{ message.file_name }}
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    PDF 文档
+                  </div>
+                </div>
+                <!-- 下载图标 -->
+                <div class="flex-shrink-0">
+                  <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 图片文件 -->
+            <div v-else class="image-message">
+              <img
+                :src="getImageUrl(message.file_url)"
+                :alt="message.file_name || '上传的图片'"
+                class="uploaded-image"
+                @click="previewImage(message.file_url)"
+                @error="handleImageError"
+              />
+            </div>
+          </div>
+          
+          <!-- 普通文本消息 -->
+          <div v-else class="whitespace-pre-wrap break-words">
+            {{ message.content }}
+          </div>
         </div>
         
         <!-- AI 消息（Markdown 渲染） -->
@@ -94,10 +139,28 @@
       </svg>
     </div>
   </div>
+  
+  <!-- 图片预览模态框 -->
+  <Teleport to="body">
+    <div
+      v-if="showImagePreview"
+      class="image-preview-modal"
+      @click="closePreview"
+    >
+      <div class="preview-content" @click.stop>
+        <button class="close-btn" @click="closePreview">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <img :src="previewImageUrl" alt="预览图片" class="preview-image" />
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js/lib/core'
 // 导入常用语言
@@ -135,6 +198,68 @@ const props = defineProps({
 
 // Emits
 defineEmits(['copy', 'regenerate', 'delete'])
+
+// 图片预览
+const showImagePreview = ref(false)
+const previewImageUrl = ref('')
+
+// 判断是否是 PDF 文件
+const isPDF = (fileName) => {
+  if (!fileName) return false
+  return fileName.toLowerCase().endsWith('.pdf')
+}
+
+// 获取图片 URL
+const getImageUrl = (fileUrl) => {
+  if (!fileUrl) return ''
+  
+  // 替换反斜杠为正斜杠（兼容 Windows 路径）
+  let url = fileUrl.replace(/\\/g, '/')
+  
+  // 如果已经是完整URL，直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  
+  // 如果以 / 开头，说明是相对于根路径的
+  if (url.startsWith('/')) {
+    return `http://localhost:8000${url}`
+  }
+  
+  // 如果以 uploads/ 开头，添加根路径和斜杠
+  if (url.startsWith('uploads/')) {
+    return `http://localhost:8000/${url}`
+  }
+  
+  // 否则添加 /uploads/ 前缀
+  return `http://localhost:8000/uploads/${url}`
+}
+
+// 打开文件（在新标签页）
+const openFile = (fileUrl) => {
+  const url = getImageUrl(fileUrl)
+  window.open(url, '_blank')
+}
+
+const previewImage = (fileUrl) => {
+  previewImageUrl.value = getImageUrl(fileUrl)
+  showImagePreview.value = true
+}
+
+const closePreview = () => {
+  showImagePreview.value = false
+  previewImageUrl.value = ''
+}
+
+const handleImageError = (event) => {
+  console.error('图片加载失败:', {
+    src: event.target.src,
+    message_type: props.message.message_type,
+    file_url: props.message.file_url,
+    file_name: props.message.file_name,
+    computed_url: getImageUrl(props.message.file_url)
+  })
+}
 
 // 配置 marked
 marked.setOptions({
@@ -275,5 +400,89 @@ const formatTime = (timestamp) => {
 
 .markdown-body em {
   @apply italic;
+}
+
+/* 文件消息样式 */
+.file-message {
+  @apply max-w-md;
+}
+
+/* PDF 文件显示 */
+.pdf-file-display {
+  @apply relative;
+}
+
+.pdf-file-display .flex {
+  @apply transition-all duration-200;
+}
+
+.pdf-file-display .flex:hover {
+  @apply shadow-md;
+}
+
+/* 图片消息样式 */
+.image-message {
+  @apply relative overflow-hidden rounded-lg;
+}
+
+.uploaded-image {
+  @apply max-w-sm max-h-80 object-contain cursor-pointer rounded-lg;
+  @apply transition-transform duration-200 hover:scale-[1.02];
+  @apply shadow-md hover:shadow-lg;
+}
+
+/* 图片预览模态框 */
+.image-preview-modal {
+  @apply fixed inset-0 z-50;
+  @apply bg-black bg-opacity-90;
+  @apply flex items-center justify-center;
+  @apply backdrop-blur-sm;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.preview-content {
+  @apply relative max-w-[90vw] max-h-[90vh];
+  @apply flex items-center justify-center;
+  animation: zoomIn 0.3s ease-out;
+}
+
+@keyframes zoomIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.preview-image {
+  @apply max-w-full max-h-[90vh] object-contain;
+  @apply rounded-lg shadow-2xl;
+}
+
+.close-btn {
+  @apply absolute top-4 right-4 z-10;
+  @apply w-10 h-10 rounded-full;
+  @apply bg-white dark:bg-gray-800;
+  @apply text-gray-700 dark:text-gray-300;
+  @apply flex items-center justify-center;
+  @apply hover:bg-gray-100 dark:hover:bg-gray-700;
+  @apply transition-colors duration-200;
+  @apply shadow-lg;
+}
+
+.close-btn:hover {
+  @apply transform scale-110;
 }
 </style>

@@ -2,8 +2,10 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+import os
 
 from .core.config import settings
 from .core.database import init_db, close_db
@@ -64,15 +66,7 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
-# 注册路由
-app.include_router(auth_router)
-app.include_router(conversations_router)
-app.include_router(model_configs_router)
-app.include_router(suggestions_router)
-app.include_router(ocr_router)
-app.include_router(chat_router)
-
-
+# 首先定义普通路由
 @app.get("/")
 async def root():
     """根路径"""
@@ -84,6 +78,23 @@ async def root():
         "docs": "/docs",
         "health": "/api/health"
     }
+
+# 注册 API 路由
+app.include_router(auth_router)
+app.include_router(conversations_router)
+app.include_router(model_configs_router)
+app.include_router(suggestions_router)
+app.include_router(ocr_router)
+app.include_router(chat_router)
+
+# 最后挂载静态文件服务（必须在所有路由之后）
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+    logger.info(f"Created uploads directory: {UPLOAD_DIR}")
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+logger.info(f"Static files mounted at /uploads -> {UPLOAD_DIR}")
 
 
 if __name__ == "__main__":

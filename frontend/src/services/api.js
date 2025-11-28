@@ -102,9 +102,10 @@ export async function logout() {
  * @param {Function} onDone - 完成时的回调
  * @param {Function} onError - 错误时的回调
  * @param {Function} onSuggestions - 接收到推荐卡片时的回调
+ * @param {boolean} saveUserMessage - 是否保存用户消息（默认 true）
  * @returns {Function} 取消函数
  */
-export function chatStream(message, conversationId, modelConfigId, onChunk, onDone, onError, onSuggestions) {
+export function chatStream(message, conversationId, modelConfigId, onChunk, onDone, onError, onSuggestions, saveUserMessage = true) {
   const controller = new AbortController()
   const token = localStorage.getItem('token')
   
@@ -117,6 +118,7 @@ export function chatStream(message, conversationId, modelConfigId, onChunk, onDo
     },
     body: JSON.stringify({
       message,
+      save_user_message: saveUserMessage,
       conversation_id: conversationId,
       model_config_id: modelConfigId,
       stream: true

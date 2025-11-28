@@ -82,12 +82,14 @@ async def generate_stream(
     config: ModelConfig,
     conversation_id: str,
     user_message: str,
-    current_user
+    current_user,
+    save_user_message: bool = True
 ):
     """生成流式响应（使用 OpenAI 客户端）"""
     try:
-        # 添加用户消息到数据库
-        await ConversationService.add_message(db, conversation_id, "user", user_message)
+        # 添加用户消息到数据库（可选）
+        if save_user_message:
+            await ConversationService.add_message(db, conversation_id, "user", user_message)
         
         # 获取对话消息（限制最近 N 条）
         messages_list = await ConversationService.get_messages(
@@ -100,6 +102,10 @@ async def generate_stream(
             for msg in messages_list
             if msg.role != "system"
         ]
+        
+        # 如果未保存用户消息，手动添加到上下文中
+        if not save_user_message:
+            user_messages.append({"role": "user", "content": user_message})
         
         # 构建消息列表（包含 system prompt）
         messages = build_messages_with_system(user_messages)
@@ -214,7 +220,7 @@ async def chat(
         # 流式响应
         if request.stream:
             return StreamingResponse(
-                generate_stream(db, config, conversation_id, request.message, current_user),
+                generate_stream(db, config, conversation_id, request.message, current_user, request.save_user_message),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -293,7 +299,11 @@ async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_
             {
                 "role": msg.role,
                 "content": msg.content,
-                "timestamp": msg.created_at.isoformat()
+                "timestamp": msg.created_at.isoformat(),
+                "message_type": msg.message_type,
+                "file_url": msg.file_url,
+                "file_name": msg.file_name,
+                "ocr_mode": msg.ocr_mode
             }
             for msg in conversation.messages
         ],

@@ -98,7 +98,9 @@ async def upload_and_ocr(
         )
     
     # 5. 保存文件到本地
-    upload_dir = os.path.join("uploads", "ocr", str(current_user.id))
+    # 使用绝对路径保存文件
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    upload_dir = os.path.join(backend_dir, "uploads", "ocr", str(current_user.id))
     os.makedirs(upload_dir, exist_ok=True)
     
     # 生成唯一文件名
@@ -106,8 +108,12 @@ async def upload_and_ocr(
     unique_filename = f"{uuid.uuid4()}{file_ext}"
     file_path = os.path.join(upload_dir, unique_filename)
     
+    # 保存文件
     with open(file_path, "wb") as f:
         f.write(file_content)
+    
+    # 生成用于前端访问的 URL 路径（使用正斜杠）
+    file_url = f"/uploads/ocr/{current_user.id}/{unique_filename}"
     
     # 6. 调用 OCR 服务
     ocr_service = OCRService(ocr_model)
@@ -133,7 +139,7 @@ async def upload_and_ocr(
         role="user",
         content=f"[上传文件: {file.filename}]",
         message_type="image",
-        file_url=file_path,
+        file_url=file_url,  # 使用 URL 路径而不是文件系统路径
         file_name=file.filename,
         ocr_mode=ocr_mode
     )
@@ -152,7 +158,7 @@ async def upload_and_ocr(
     return {
         "content_markdown": ocr_result["content"],
         "ocr_mode": ocr_mode,
-        "file_url": file_path,
+        "file_url": file_url,  # 返回 URL 路径
         "file_name": file.filename,
         "user_message_id": user_message.id
     }

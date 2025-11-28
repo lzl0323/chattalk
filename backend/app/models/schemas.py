@@ -11,6 +11,10 @@ class Message(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
     timestamp: datetime = Field(default_factory=datetime.now)
+    message_type: Optional[str] = Field(default="text", description="消息类型: text, image, ocr")
+    file_url: Optional[str] = Field(default=None, description="文件存储路径")
+    file_name: Optional[str] = Field(default=None, description="原始文件名")
+    ocr_mode: Optional[str] = Field(default=None, description="OCR 模式")
     
     class Config:
         json_schema_extra = {
@@ -28,6 +32,7 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = Field(None, description="对话 ID，不提供则创建新对话")
     model_config_id: Optional[int] = Field(None, description="模型配置 ID，不提供则使用默认模型")
     stream: bool = Field(True, description="是否使用流式响应")
+    save_user_message: bool = Field(True, description="是否保存用户消息到数据库（OCR 自动发送时设为 False）")
     model: Optional[str] = Field(None, description="（已废弃）指定模型，请使用 model_config_id")
     
     @validator('message')

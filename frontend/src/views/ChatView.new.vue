@@ -86,6 +86,7 @@
     <div
       ref="messagesContainer"
       class="flex-1 overflow-y-auto px-4 py-6"
+      @scroll="handleScroll"
     >
       <!-- 空状态：欢迎界面 -->
       <div v-if="messages.length === 0" class="flex-1 flex flex-col items-center justify-center px-4 pb-32">
@@ -286,7 +287,16 @@ const loadingSuggestions = ref(false)
 const cancelStream = ref(null)
 
 // 计算属性
-const messages = computed(() => chatStore.messages)
+const messages = computed(() => {
+  // 过滤掉包含 OCR 标签的用户消息（自动发送给模型的 OCR 内容）
+  return chatStore.messages.filter(msg => {
+    if (msg.role === 'user' && msg.content) {
+      // 检查是否包含 OCR 标签
+      return !msg.content.includes('<|ref]>') && !msg.content.includes('<|det]>')
+    }
+    return true
+  })
+})
 const models = computed(() => modelStore.models)
 const currentModel = computed(() => 
   models.value.find(m => m.id === selectedModelId.value)
@@ -308,6 +318,36 @@ const scrollToBottom = () => {
   nextTick(() => {
     if (messagesContainer.value) {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  })
+}
+
+// 保存滚动位置（防抖）
+let scrollSaveTimer = null
+const handleScroll = () => {
+  if (!chatStore.currentConversation?.id) return
+  
+  // 使用防抖避免频繁保存
+  clearTimeout(scrollSaveTimer)
+  scrollSaveTimer = setTimeout(() => {
+    const scrollTop = messagesContainer.value?.scrollTop
+    if (scrollTop !== undefined) {
+      const key = `scroll_${chatStore.currentConversation.id}`
+      localStorage.setItem(key, scrollTop.toString())
+    }
+  }, 200)
+}
+
+// 恢复滚动位置
+const restoreScrollPosition = () => {
+  if (!chatStore.currentConversation?.id) return
+  
+  nextTick(() => {
+    const key = `scroll_${chatStore.currentConversation.id}`
+    const savedPosition = localStorage.getItem(key)
+    
+    if (savedPosition && messagesContainer.value) {
+      messagesContainer.value.scrollTop = parseInt(savedPosition)
     }
   })
 }
@@ -518,6 +558,14 @@ watch(inputMessage, () => {
   autoResizeTextarea()
 })
 
+// 监听对话切换，恢复滚动位置
+watch(() => chatStore.currentConversation?.id, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    // 对话切换时，恢复该对话的滚动位置
+    restoreScrollPosition()
+  }
+})
+
 // 加载推荐问题
 const loadInitialSuggestions = async () => {
   loadingSuggestions.value = true
@@ -614,7 +662,11 @@ const handleFileUpload = async (result) => {
           
           isLoading.value = false
           cancelStream.value = null
-        }
+        },
+        // onSuggestions
+        null,
+        // saveUserMessage - OCR 内容不保存到数据库
+        false
       )
     }, 100)
   }
@@ -636,8 +688,16 @@ onMounted(async () => {
     selectedModelId.value = availableModel?.id || modelStore.models[0].id
   }
   
-  // 加载推荐问题
-  loadInitialSuggestions()
+  // 恢复上次打开的对话
+  await chatStore.restoreLastConversation()
+  
+  // 如果恢复了对话，恢复滚动位置
+  if (chatStore.currentConversation) {
+    restoreScrollPosition()
+  } else {
+    // 如果没有恢复到对话，加载推荐问题
+    loadInitialSuggestions()
+  }
   
   // 聚焦输入框
   inputTextarea.value?.focus()
