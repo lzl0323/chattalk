@@ -23,6 +23,8 @@
 - 📝 **对话管理** - 完整的对话历史保存和管理
 - 🎨 **智能推荐** - 基于场景的智能问题推荐
 - 🌓 **深色模式** - 护眼深色模式，自动适配系统主题
+- 📄 **OCR 识别** - 支持图片和 PDF 文件的文字识别
+- 🖼️ **文件上传** - 拖拽上传图片和 PDF，智能识别并分析
 
 ### 🔐 用户体验
 - 👤 **用户认证** - JWT Token 安全认证
@@ -30,6 +32,9 @@
 - 📊 **配额管理** - 实时显示模型使用配额
 - ⚡ **停止生成** - 随时中断 AI 输出
 - 📱 **响应式设计** - 完美适配桌面和移动设备
+- 🔄 **自动恢复** - 刷新后自动恢复上次对话和滚动位置
+- 📸 **图片预览** - 点击放大查看上传的图片
+- 📂 **文件管理** - 图片缩略图和 PDF 图标显示
 
 ### 🎨 界面设计
 - 🖼️ **现代 UI** - 参考 ChatGPT 的精美界面设计
@@ -63,6 +68,8 @@
 - 流式响应 (Server-Sent Events)
 - 自定义 API Key 和 Base URL
 - 配额管理和统计
+- OCR 文字识别 (SiliconFlow DeepSeek-OCR)
+- 多模态支持（文本 + 图片）
 
 ---
 
@@ -141,18 +148,23 @@ chattalk/
 │   │   ├── api/            # API 路由
 │   │   │   ├── auth.py     # 用户认证
 │   │   │   ├── chat.py     # 对话接口
-│   │   │   ├── models.py   # 模型管理
+│   │   │   ├── conversations.py  # 对话管理
+│   │   │   ├── model_configs.py  # 模型配置
+│   │   │   ├── ocr.py      # OCR 识别
 │   │   │   └── suggestions.py  # 智能推荐
 │   │   ├── core/           # 核心配置
 │   │   │   ├── config.py   # 配置管理
 │   │   │   ├── database.py # 数据库连接
 │   │   │   └── security.py # 安全认证
 │   │   ├── models/         # 数据模型
-│   │   │   └── db_models.py
+│   │   │   ├── db_models.py  # 数据库模型
+│   │   │   └── schemas.py    # API 模型
 │   │   ├── services/       # 业务逻辑
-│   │   │   ├── ai_service.py
+│   │   │   ├── openai_service.py  # OpenAI 接口
 │   │   │   ├── conversation_service.py
-│   │   │   └── model_service.py
+│   │   │   ├── ocr_service.py  # OCR 服务
+│   │   │   └── suggestion_service.py
+│   │   ├── uploads/        # 用户上传文件（不提交到 Git）
 │   │   └── main.py         # 应用入口
 │   ├── requirements.txt    # Python 依赖
 │   └── .env.example        # 环境变量模板
@@ -162,11 +174,17 @@ chattalk/
 │   │   ├── assets/        # 静态资源
 │   │   ├── components/    # 组件
 │   │   │   ├── chat/      # 聊天组件
+│   │   │   │   ├── ChatMessage.vue  # 消息组件（支持图片/PDF）
+│   │   │   │   ├── FileUpload.vue   # 文件上传组件
+│   │   │   │   └── MessageInput.vue
 │   │   │   └── layout/    # 布局组件
 │   │   ├── router/        # 路由配置
 │   │   ├── services/      # API 服务
 │   │   ├── stores/        # 状态管理
+│   │   │   ├── chatStore.js   # 对话状态（含滚动位置）
+│   │   │   └── modelStore.js  # 模型状态
 │   │   └── views/         # 页面视图
+│   │       └── ChatView.new.vue  # 主聊天界面
 │   ├── package.json       # Node 依赖
 │   └── vite.config.js     # Vite 配置
 │
@@ -224,15 +242,37 @@ Content-Type: application/json
 
 #### 流式聊天
 ```http
-POST /api/chat/stream
+POST /api/chat
 Authorization: Bearer {token}
 Content-Type: application/json
 
 {
-  "conversation_id": "xxx",
   "message": "你好",
-  "model_id": 1
+  "conversation_id": "xxx",
+  "model_config_id": 1,
+  "stream": true,
+  "save_user_message": true
 }
+```
+
+### OCR 识别
+
+#### 上传并识别文件
+```http
+POST /api/ocr/upload
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+file: [图片或PDF文件]
+conversation_id: "xxx"
+ocr_mode: "markdown"  # 可选: markdown, text, detailed
+model_id: 1  # 可选，不提供则使用默认 OCR 模型
+```
+
+#### 获取 OCR 模型列表
+```http
+GET /api/ocr/models
+Authorization: Bearer {token}
 ```
 
 ### 模型管理
@@ -299,6 +339,11 @@ CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 DEFAULT_MODEL_NAME=gpt-3.5-turbo
 DEFAULT_API_BASE=https://api.openai.com/v1
 DEFAULT_API_KEY=sk-xxx
+
+# OCR 服务配置
+OCR_API_BASE=https://api.siliconflow.cn/v1
+OCR_API_KEY=sk-xxx
+OCR_MODEL=Pro/Qwen/Qwen2-VL-7B-Instruct
 ```
 
 ---
@@ -342,14 +387,18 @@ black app/
 
 ## 📝 待办事项
 
-- [ ] 添加文件上传功能
-- [ ] 支持图片识别
+- [x] 添加文件上传功能
+- [x] 支持图片识别（OCR）
+- [x] PDF 文件识别和显示
+- [x] 对话滚动位置保存
 - [ ] 添加语音输入
 - [ ] 对话导出功能
 - [ ] 多语言支持
 - [ ] Docker 部署配置
 - [ ] 单元测试覆盖
 - [ ] CI/CD 集成
+- [ ] 支持更多文件格式（Word、Excel 等）
+- [ ] 图片编辑和标注功能
 
 ---
 
