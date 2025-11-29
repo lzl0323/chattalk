@@ -28,6 +28,29 @@ class Settings(BaseSettings):
     # 速率限制（可选）
     max_requests_per_minute: int = 60
     
+    # DeepSeek OCR 配置（可选）
+    deepseek_ocr_api_key: str = ""
+    deepseek_ocr_api_base: str = "https://api.siliconflow.cn/v1"
+    deepseek_ocr_model: str = "deepseek-ai/DeepSeek-OCR"
+    deepseek_ocr_quota_limit: float = 1000000.0
+    
+    # RAG Embedding 配置
+    embedding_api_key: str = "sk-toidgawwsnxnxnnoowbbxwzppnljpfpjzkcoutivupcihbis"
+    embedding_api_base: str = "https://api.siliconflow.cn/v1"
+    embedding_model: str = "BAAI/bge-large-zh-v1.5"
+    embedding_dimension: int = 1024
+    
+    # RAG 配置
+    rag_top_k: int = 3
+    rag_similarity_threshold: float = 0.7
+    vector_store_path: str = "data/vector_index"
+    chunk_size: int = 500
+    chunk_overlap: int = 50
+    
+    # Web Search 配置
+    tavily_api_key: str = ""  # Tavily API Key（可选，留空则使用 DuckDuckGo）
+    web_search_max_results: int = 3  # 搜索结果数量（减少以避免 Prompt 过长）
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """解析 CORS origins 为列表"""

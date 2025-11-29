@@ -15,6 +15,7 @@ from .api.conversations import router as conversations_router
 from .api.model_configs import router as model_configs_router
 from .api.suggestions import router as suggestions_router
 from .api.ocr import router as ocr_router
+from .api.rag import router as rag_router
 from .services.kimi import kimi_service
 
 # 配置日志
@@ -57,14 +58,30 @@ app = FastAPI(
 )
 
 # 配置 CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
+# 开发环境：使用正则匹配局域网IP + localhost，生产环境使用配置的源
+is_dev = settings.log_level in ["DEBUG", "INFO"]
+
+if is_dev:
+    # 允许localhost和所有局域网IP（192.168.x.x, 10.x.x.x, 172.16-31.x.x）
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"]
+    )
+    logger.info("CORS configured: Development mode - allowing all local/LAN origins with credentials")
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"]
+    )
+    logger.info(f"CORS configured: Production mode - {settings.cors_origins_list}")
 
 # 首先定义普通路由
 @app.get("/")
@@ -85,6 +102,7 @@ app.include_router(conversations_router)
 app.include_router(model_configs_router)
 app.include_router(suggestions_router)
 app.include_router(ocr_router)
+app.include_router(rag_router)
 app.include_router(chat_router)
 
 # 最后挂载静态文件服务（必须在所有路由之后）

@@ -17,6 +17,7 @@ class Message(BaseModel):
     ocr_mode: Optional[str] = Field(default=None, description="OCR 模式")
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "role": "user",
@@ -34,6 +35,15 @@ class ChatRequest(BaseModel):
     stream: bool = Field(True, description="是否使用流式响应")
     save_user_message: bool = Field(True, description="是否保存用户消息到数据库（OCR 自动发送时设为 False）")
     model: Optional[str] = Field(None, description="（已废弃）指定模型，请使用 model_config_id")
+    
+    # 深度搜索相关字段
+    search_mode: str = Field("normal", description="搜索模式: normal(普通), rag(知识库), web(联网搜索)")
+    
+    # RAG 相关字段（search_mode=rag 时使用）
+    use_rag: bool = Field(False, description="是否使用 RAG 深度搜索模式")
+    knowledge_base_id: Optional[str] = Field("default", description="知识库 ID")
+    rag_top_k: Optional[int] = Field(None, description="RAG 检索结果数量")
+    rag_threshold: Optional[float] = Field(None, description="RAG 相似度阈值")
     
     @validator('message')
     def validate_message(cls, v):
@@ -154,6 +164,7 @@ class ErrorResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "error": "Invalid request",
@@ -171,6 +182,7 @@ class UserRegister(BaseModel):
     password: str = Field(..., min_length=6, max_length=100, description="用户密码，6-100字符")
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "email": "user@example.com",
@@ -185,6 +197,7 @@ class UserLogin(BaseModel):
     password: str = Field(..., description="用户密码")
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "email": "user@example.com",
@@ -202,6 +215,7 @@ class UserResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "id": 1,
@@ -219,6 +233,7 @@ class Token(BaseModel):
     user: UserResponse
     
     class Config:
+        protected_namespaces = ()  # 添加 protected_namespaces
         json_schema_extra = {
             "example": {
                 "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -240,6 +255,7 @@ class ApiResponse(BaseModel):
     data: Optional[dict] = Field(default=None, description="数据")
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "code": 200,
@@ -256,6 +272,7 @@ class ConversationCreate(BaseModel):
     title: Optional[str] = Field(None, max_length=255, description="对话标题")
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "title": "关于 Python 的讨论"
@@ -268,6 +285,7 @@ class ConversationUpdate(BaseModel):
     title: str = Field(..., max_length=255, description="对话标题")
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "title": "新的对话标题"
@@ -284,6 +302,7 @@ class ConversationListItem(BaseModel):
     message_count: int = 0
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -304,6 +323,7 @@ class ConversationDetail(BaseModel):
     messages: List[Message]
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -331,6 +351,7 @@ class MessageCreate(BaseModel):
         return v.strip()
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "conversation_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -443,6 +464,7 @@ class ModelConfigList(BaseModel):
     items: List[ModelConfigOut]
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "total": 2,
@@ -456,6 +478,7 @@ class QuotaResetRequest(BaseModel):
     quota_used: float = Field(0.0, description="重置后的使用量", ge=0)
     
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "quota_used": 0.0

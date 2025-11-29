@@ -182,6 +182,14 @@
     <!-- 输入区域 -->
     <div class="flex-shrink-0 bg-gradient-to-t from-white to-white/80 dark:from-gpt-dark-700 dark:to-gpt-dark-700/80 backdrop-blur-sm p-6">
       <div class="max-w-4xl mx-auto">
+        <!-- 搜索模式选择器 -->
+        <div class="mb-3">
+          <SearchModeSelector 
+            v-model="searchMode"
+            :hasKnowledgeBase="hasKnowledgeBase"
+          />
+        </div>
+        
         <!-- 输入框容器 -->
         <div class="relative bg-white dark:bg-gpt-dark-800 rounded-3xl shadow-lg dark:shadow-2xl border border-gray-200 dark:border-gpt-dark-600">
           <div class="flex items-end gap-2 p-3">
@@ -260,6 +268,7 @@ import { useModelStore } from '@/stores/modelStore'
 import { getSuggestions, chatStream } from '@/services/api'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import FileUpload from '@/components/chat/FileUpload.vue'
+import SearchModeSelector from '@/components/chat/SearchModeSelector.vue'
 
 // Stores
 const chatStore = useChatStore()
@@ -285,6 +294,17 @@ const suggestionsList = ref([])
 const initialSuggestions = ref([])
 const loadingSuggestions = ref(false)
 const cancelStream = ref(null)
+
+// 搜索模式状态（从 localStorage 恢复）
+const searchMode = ref(localStorage.getItem('chatSearchMode') || 'normal')  // normal, web, rag
+const hasKnowledgeBase = ref(false)  // 是否有知识库
+const knowledgeBaseId = ref('default')  // 知识库ID
+
+// 监听搜索模式变化，保存到 localStorage
+watch(searchMode, (newMode) => {
+  localStorage.setItem('chatSearchMode', newMode)
+  console.log('💾 搜索模式已保存:', newMode)
+})
 
 // 计算属性
 const messages = computed(() => {
@@ -409,17 +429,22 @@ const sendMessage = async () => {
     selectedModelId.value,
     // onChunk
     (chunk) => {
+      console.log('💬 收到内容块:', chunk)
       const msg = chatStore.messages[assistantIndex]
       if (msg) {
         msg.content += chunk
         scrollToBottom()
+      } else {
+        console.error('❌ 找不到assistant消息:', assistantIndex)
       }
     },
     // onDone
     (conversationId) => {
+      console.log('✅ 对话完成:', conversationId)
       const msg = chatStore.messages[assistantIndex]
       if (msg) {
         msg.isStreaming = false
+        console.log('📝 最终内容:', msg.content)
       }
       isLoading.value = false
       cancelStream.value = null
@@ -455,8 +480,14 @@ const sendMessage = async () => {
     (suggestions) => {
       suggestionsList.value.push({ suggestions })
       scrollToBottom()
-    }
+    },
+    true, // saveUserMessage
+    searchMode.value !== 'normal', // useRag (web或rag模式都启用)
+    searchMode.value === 'web' ? 'web_search' : knowledgeBaseId.value // knowledgeBaseId
   )
+  
+  // 打印调试信息
+  console.log('🔍 搜索模式:', searchMode.value, 'useRag:', searchMode.value !== 'normal', 'knowledgeBaseId:', searchMode.value === 'web' ? 'web_search' : knowledgeBaseId.value)
 }
 
 // 停止生成
@@ -474,9 +505,115 @@ const stopGeneration = () => {
   }
 }
 
-const handleSuggestionClick = (title) => {
+const handleSuggestionClick = async (title) => {
+  console.log('推荐问题被点击:', title)
   inputMessage.value = title
-  sendMessage()
+  
+  // 使用 nextTick 确保 inputMessage 已更新
+  await nextTick()
+  
+  console.log('准备发送消息:', {
+    message: inputMessage.value,
+    conversationId: chatStore.currentConversation?.id,
+    modelId: selectedModelId.value
+  })
+  
+  // 直接调用发送逻辑，不依赖 inputMessage
+  if (!canSend.value) {
+    if (!currentModel.value?.is_active || currentModel.value?.quota_remaining <= 0) {
+      showQuotaWarning.value = true
+      showToast?.('当前模型流量已用完，请切换其他模型', 'warning')
+    }
+    return
+  }
+  
+  const message = title.trim()  // 直接使用传入的 title
+  if (!message) return
+  
+  console.log('✅ 实际发送的消息:', message)
+  
+  // 清空输入框
+  inputMessage.value = ''
+  autoResizeTextarea()
+  
+  // 添加用户消息
+  chatStore.messages.push({
+    role: 'user',
+    content: message,
+    timestamp: new Date()
+  })
+  
+  scrollToBottom()
+  
+  // 准备接收 AI 回复
+  const assistantIndex = chatStore.messages.length
+  chatStore.messages.push({
+    role: 'assistant',
+    content: '',
+    timestamp: new Date(),
+    isStreaming: true
+  })
+  
+  isLoading.value = true
+  
+  // 调用流式 API（支持 RAG）
+  cancelStream.value = chatStream(
+    message,
+    chatStore.currentConversation?.id,
+    selectedModelId.value,
+    // onChunk
+    (chunk) => {
+      console.log('💬 收到内容块:', chunk)
+      const msg = chatStore.messages[assistantIndex]
+      if (msg) {
+        msg.content += chunk
+        scrollToBottom()
+      }
+    },
+    // onDone
+    (conversationId) => {
+      console.log('✅ 对话完成:', conversationId)
+      const msg = chatStore.messages[assistantIndex]
+      if (msg) {
+        msg.isStreaming = false
+        console.log('📝 最终内容:', msg.content)
+      }
+      isLoading.value = false
+      cancelStream.value = null
+      scrollToBottom()
+      inputTextarea.value?.focus()
+      
+      if (!chatStore.currentConversation?.id && conversationId) {
+        chatStore.currentConversation.id = conversationId
+      }
+    },
+    // onError
+    (error) => {
+      isLoading.value = false
+      cancelStream.value = null
+      const msg = chatStore.messages[assistantIndex]
+      
+      if (error?.name === 'AbortError') {
+        if (msg) {
+          msg.isStreaming = false
+        }
+        showToast?.('已停止生成', 'info')
+      } else {
+        if (msg && !msg.content) {
+          chatStore.messages.splice(assistantIndex, 1)
+        }
+        showToast?.(error?.message || '发送失败', 'error')
+      }
+    },
+    // onSuggestions
+    (suggestions) => {
+      suggestionsList.value.push({ suggestions })
+      scrollToBottom()
+    },
+    true, // saveUserMessage
+    searchMode.value !== 'normal', // useRag (web或rag模式都启用)
+    searchMode.value === 'web' ? 'web_search' : knowledgeBaseId.value // knowledgeBaseId
+  )
 }
 
 const regenerateMessage = async (index) => {
@@ -563,8 +700,21 @@ watch(() => chatStore.currentConversation?.id, (newId, oldId) => {
   if (newId && newId !== oldId) {
     // 对话切换时，恢复该对话的滚动位置
     restoreScrollPosition()
+    
+    // 如果切换到新对话且消息为空，加载推荐问题
+    if (messages.value.length === 0 && !loadingSuggestions.value && initialSuggestions.value.length === 0) {
+      loadInitialSuggestions()
+    }
   }
 })
+
+// 监听消息列表变化，当消息为空时加载推荐问题
+watch(() => messages.value.length, (newLength, oldLength) => {
+  // 只在消息从有到无时触发（比如新建对话），避免初始化时重复加载
+  if (newLength === 0 && oldLength > 0 && !loadingSuggestions.value && initialSuggestions.value.length === 0) {
+    loadInitialSuggestions()
+  }
+}, { flush: 'post' })
 
 // 加载推荐问题
 const loadInitialSuggestions = async () => {
@@ -677,6 +827,31 @@ const handleFileUploadError = (error) => {
   console.error('File upload failed:', error)
 }
 
+// 检查知识库状态
+const checkKnowledgeBaseStatus = async () => {
+  try {
+    const { ragAPI } = await import('@/services/api')
+    const status = await ragAPI.checkStatus()
+    
+    // 只要有知识库就认为可用（不强制要求有文档）
+    hasKnowledgeBase.value = status.knowledge_bases && status.knowledge_bases.length > 0
+    
+    if (hasKnowledgeBase.value) {
+      knowledgeBaseId.value = status.knowledge_bases[0].id
+      console.log('✅ 知识库可用:', {
+        count: status.knowledge_bases.length,
+        id: knowledgeBaseId.value,
+        documents: status.total_documents
+      })
+    } else {
+      console.log('❌ 未找到知识库')
+    }
+  } catch (error) {
+    console.error('检查知识库状态失败:', error)
+    hasKnowledgeBase.value = false
+  }
+}
+
 // 初始化
 onMounted(async () => {
   // 加载模型列表
@@ -687,6 +862,9 @@ onMounted(async () => {
     const availableModel = modelStore.models.find(m => m.is_active && m.quota_remaining > 0)
     selectedModelId.value = availableModel?.id || modelStore.models[0].id
   }
+  
+  // 检查知识库状态
+  await checkKnowledgeBaseStatus()
   
   // 恢复上次打开的对话
   await chatStore.restoreLastConversation()

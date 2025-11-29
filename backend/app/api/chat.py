@@ -83,13 +83,71 @@ async def generate_stream(
     conversation_id: str,
     user_message: str,
     current_user,
-    save_user_message: bool = True
+    save_user_message: bool = True,
+    use_rag: bool = False,
+    knowledge_base_id: str = "default",
+    rag_top_k: int = None,
+    rag_threshold: float = None
 ):
-    """生成流式响应（使用 OpenAI 客户端）"""
+    """生成流式响应（支持 RAG 模式）"""
     try:
-        # 添加用户消息到数据库（可选）
+        # 原始用户消息（用于保存）
+        original_message = user_message
+        
+        # Web Search 模式：联网搜索
+        if use_rag and knowledge_base_id == "web_search":
+            logger.info(f"🌐 Web Search 模式启用")
+            
+            try:
+                from ..services.web_search_service import web_search_service
+                
+                # 执行网络搜索
+                search_results = await web_search_service.search(
+                    query=user_message,
+                    max_results=settings.web_search_max_results
+                )
+                
+                if search_results:
+                    # 构建基于搜索结果的 Prompt
+                    user_message = web_search_service.build_search_prompt(user_message, search_results)
+                    logger.info(f"✅ 搜索到 {len(search_results)} 条网络结果，已增强 Prompt")
+                else:
+                    logger.warning("⚠️  未搜索到相关结果，使用原始问题")
+                    
+            except Exception as e:
+                logger.error(f"❌ Web Search 失败: {e}，降级为普通对话")
+                # Web Search 失败不影响正常对话
+        
+        # RAG 模式：本地知识库检索
+        elif use_rag:
+            logger.info(f"🔍 RAG 模式启用，knowledge_base_id={knowledge_base_id}")
+            
+            try:
+                from ..services.rag_service import rag_service
+                
+                # 检索相关文档
+                contexts = await rag_service.retrieve_context(
+                    query=user_message,
+                    knowledge_base_id=knowledge_base_id,
+                    top_k=rag_top_k,
+                    similarity_threshold=rag_threshold
+                )
+                
+                if contexts:
+                    # 构建 RAG Prompt（增强后的消息）
+                    user_message = rag_service.build_rag_prompt(user_message, contexts)
+                    logger.info(f"✅ 检索到 {len(contexts)} 条相关文档，已增强 Prompt")
+                    logger.debug(f"Top context similarity: {contexts[0]['similarity']:.2%}")
+                else:
+                    logger.warning("⚠️  未检索到相关文档，使用原始问题")
+                    
+            except Exception as e:
+                logger.error(f"❌ RAG 检索失败: {e}，降级为普通对话")
+                # RAG 失败不影响正常对话
+        
+        # 添加用户消息到数据库（可选）- 保存原始消息
         if save_user_message:
-            await ConversationService.add_message(db, conversation_id, "user", user_message)
+            await ConversationService.add_message(db, conversation_id, "user", original_message)
         
         # 获取对话消息（限制最近 N 条）
         messages_list = await ConversationService.get_messages(
@@ -103,16 +161,24 @@ async def generate_stream(
             if msg.role != "system"
         ]
         
-        # 如果未保存用户消息，手动添加到上下文中
+        # 如果未保存用户消息，手动添加到上下文中（使用增强后的消息）
         if not save_user_message:
             user_messages.append({"role": "user", "content": user_message})
+        else:
+            # 替换最后一条用户消息为增强后的消息（如果启用了RAG）
+            if use_rag and user_messages and user_messages[-1]["role"] == "user":
+                user_messages[-1]["content"] = user_message
         
         # 构建消息列表（包含 system prompt）
         messages = build_messages_with_system(user_messages)
         
+        # 打印最后一条用户消息（用于调试）
+        last_user_msg = next((msg for msg in reversed(messages) if msg["role"] == "user"), None)
         logger.info(
             f"Sending to OpenAI API, model: {config.name} ({config.model}), "
-            f"conversation: {conversation_id}, messages: {len(messages)}"
+            f"conversation: {conversation_id}, messages: {len(messages)}, "
+            f"use_rag: {use_rag}, "
+            f"last_user_message: '{last_user_msg['content'][:100] if last_user_msg else 'N/A'}...'"
         )
         
         # 收集完整的助手回复
@@ -203,6 +269,8 @@ async def chat(
     需要提供有效的 Bearer Token。
     自动进行配额检查，配额用尽时返回 429 错误。
     """
+    logger.info(f"📨 收到聊天请求: message='{request.message}', conversation_id={request.conversation_id}, model_config_id={request.model_config_id}, user_id={current_user.id}")
+    
     try:
         # 获取模型配置
         config = await get_model_config(db, request.model_config_id)
@@ -220,7 +288,18 @@ async def chat(
         # 流式响应
         if request.stream:
             return StreamingResponse(
-                generate_stream(db, config, conversation_id, request.message, current_user, request.save_user_message),
+                generate_stream(
+                    db=db,
+                    config=config,
+                    conversation_id=conversation_id,
+                    user_message=request.message,
+                    current_user=current_user,
+                    save_user_message=request.save_user_message,
+                    use_rag=request.use_rag,
+                    knowledge_base_id=request.knowledge_base_id,
+                    rag_top_k=request.rag_top_k,
+                    rag_threshold=request.rag_threshold
+                ),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",

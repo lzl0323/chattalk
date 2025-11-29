@@ -99,7 +99,9 @@ async def upload_and_ocr(
     
     # 5. 保存文件到本地
     # 使用绝对路径保存文件
-    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # __file__ 是 backend/app/api/ocr.py
+    # 需要回退3层到 backend/
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     upload_dir = os.path.join(backend_dir, "uploads", "ocr", str(current_user.id))
     os.makedirs(upload_dir, exist_ok=True)
     

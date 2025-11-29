@@ -5,9 +5,17 @@
 
 import axios from 'axios'
 
+// 获取API基础URL
+// 开发环境：使用环境变量配置的地址（支持局域网访问）
+// 生产环境：使用相对路径
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const baseURL = API_BASE_URL ? `${API_BASE_URL}/api` : '/api'
+
+console.log('API Base URL:', baseURL)
+
 // 创建 axios 实例
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: baseURL,
   timeout: 300000, // 5 分钟超时
   headers: {
     'Content-Type': 'application/json'
@@ -105,12 +113,34 @@ export async function logout() {
  * @param {boolean} saveUserMessage - 是否保存用户消息（默认 true）
  * @returns {Function} 取消函数
  */
-export function chatStream(message, conversationId, modelConfigId, onChunk, onDone, onError, onSuggestions, saveUserMessage = true) {
+export function chatStream(
+  message, 
+  conversationId, 
+  modelConfigId, 
+  onChunk, 
+  onDone, 
+  onError, 
+  onSuggestions, 
+  saveUserMessage = true,
+  useRag = false,  // 新增：是否使用RAG
+  knowledgeBaseId = 'default'  // 新增：知识库ID
+) {
   const controller = new AbortController()
   const token = localStorage.getItem('token')
   
   // 使用 fetch 进行流式请求
-  fetch('/api/chat', {
+  const chatUrl = API_BASE_URL ? `${API_BASE_URL}/api/chat` : '/api/chat'
+  
+  console.log('🚀 开始流式请求:', {
+    url: chatUrl,
+    message,
+    conversationId,
+    modelConfigId,
+    useRag,
+    knowledgeBaseId
+  })
+  
+  fetch(chatUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -121,11 +151,15 @@ export function chatStream(message, conversationId, modelConfigId, onChunk, onDo
       save_user_message: saveUserMessage,
       conversation_id: conversationId,
       model_config_id: modelConfigId,
-      stream: true
+      stream: true,
+      use_rag: useRag,  // 新增
+      knowledge_base_id: knowledgeBaseId  // 新增
     }),
     signal: controller.signal
   })
     .then(async (response) => {
+      console.log('📡 收到响应:', response.status, response.statusText)
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -134,16 +168,19 @@ export function chatStream(message, conversationId, modelConfigId, onChunk, onDo
       const decoder = new TextDecoder()
       
       let buffer = ''
+      let chunkCount = 0
       
       while (true) {
         const { done, value } = await reader.read()
         
         if (done) {
+          console.log('✅ 流式响应完成，共接收', chunkCount, '个数据块')
           break
         }
         
         // 解码数据块
-        buffer += decoder.decode(value, { stream: true })
+        const decoded = decoder.decode(value, { stream: true })
+        buffer += decoded
         
         // 处理 SSE 格式的数据
         const lines = buffer.split('\n')
@@ -155,28 +192,36 @@ export function chatStream(message, conversationId, modelConfigId, onChunk, onDo
             
             try {
               const chunk = JSON.parse(data)
+              console.log('📦 收到数据块:', chunk.type, chunk)
               
               if (chunk.type === 'content' && chunk.content) {
+                chunkCount++
                 onChunk(chunk.content)
               } else if (chunk.type === 'suggestions' && chunk.suggestions) {
                 // 处理推荐卡片
+                console.log('💡 收到推荐卡片:', chunk.suggestions.length)
                 if (onSuggestions) {
                   onSuggestions(chunk.suggestions)
                 }
               } else if (chunk.type === 'done') {
+                console.log('🎯 流式响应结束:', chunk.conversation_id)
                 onDone(chunk.conversation_id)
               } else if (chunk.type === 'error') {
+                console.error('❌ 服务器返回错误:', chunk.error)
                 onError(new Error(chunk.error || '未知错误'))
               }
             } catch (e) {
-              console.error('Failed to parse chunk:', data, e)
+              console.error('❌ 解析数据块失败:', data, e)
             }
+          } else if (line.trim()) {
+            console.log('⚠️  非SSE格式的行:', line)
           }
         }
       }
     })
     .catch((error) => {
       // AbortError 也需要传递给 onError，让组件决定如何处理
+      console.error('❌ 流式请求失败:', error)
       onError(error)
     })
   
@@ -493,6 +538,87 @@ export const ocrAPI = {
    */
   async getModes() {
     const response = await apiClient.get('/ocr/modes')
+    return response.data
+  }
+}
+
+// RAG API
+export const ragAPI = {
+  /**
+   * 检查 RAG 功能状态
+   */
+  async checkStatus() {
+    const response = await apiClient.get('/rag/check')
+    return response.data
+  },
+
+  /**
+   * 获取知识库列表
+   */
+  async getKnowledgeBases() {
+    const response = await apiClient.get('/rag/knowledge-bases')
+    return response.data
+  },
+
+  /**
+   * 创建知识库
+   */
+  async createKnowledgeBase(name, description = '') {
+    const response = await apiClient.post('/rag/knowledge-bases', {
+      name,
+      description
+    })
+    return response.data
+  },
+
+  /**
+   * 上传文档到知识库
+   */
+  async uploadDocument(knowledgeBaseId, file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const response = await apiClient.post(
+      `/rag/knowledge-bases/${knowledgeBaseId}/upload`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    )
+    return response.data
+  },
+
+  /**
+   * 获取知识库的文档列表
+   */
+  async getDocuments(knowledgeBaseId) {
+    const response = await apiClient.get(`/rag/knowledge-bases/${knowledgeBaseId}/documents`)
+    return response.data
+  },
+
+  /**
+   * 获取知识库统计信息
+   */
+  async getStats(knowledgeBaseId) {
+    const response = await apiClient.get(`/rag/knowledge-bases/${knowledgeBaseId}/stats`)
+    return response.data
+  },
+
+  /**
+   * 删除文档
+   */
+  async deleteDocument(knowledgeBaseId, documentId) {
+    const response = await apiClient.delete(`/rag/knowledge-bases/${knowledgeBaseId}/documents/${documentId}`)
+    return response.data
+  },
+
+  /**
+   * 删除知识库
+   */
+  async deleteKnowledgeBase(knowledgeBaseId) {
+    const response = await apiClient.delete(`/rag/knowledge-bases/${knowledgeBaseId}`)
     return response.data
   }
 }

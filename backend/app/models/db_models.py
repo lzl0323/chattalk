@@ -168,3 +168,55 @@ class SuggestionRecord(Base):
     
     def __repr__(self):
         return f"<SuggestionRecord(id={self.id}, user_id={self.user_id}, title={self.title})>"
+
+
+class KnowledgeBase(Base):
+    """知识库表"""
+    __tablename__ = "knowledge_bases"
+    
+    id = Column(String(36), primary_key=True)  # UUID
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    document_count = Column(Integer, default=0)
+    total_chunks = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+    
+    # 关系
+    user = relationship("User", backref="knowledge_bases")
+    documents = relationship("Document", back_populates="knowledge_base", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<KnowledgeBase(id={self.id}, name={self.name}, user_id={self.user_id})>"
+
+
+class Document(Base):
+    """文档表"""
+    __tablename__ = "documents"
+    
+    id = Column(String(36), primary_key=True)  # UUID
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    file_name = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=True)  # 原始文件路径
+    file_type = Column(String(50), nullable=True)  # pdf, txt, docx, md
+    file_size = Column(Integer, nullable=True)  # 字节
+    
+    content = Column(Text, nullable=False)  # 文档内容
+    chunk_count = Column(Integer, default=0)  # chunk 数量
+    
+    status = Column(String(20), default="pending")  # pending, processing, completed, failed
+    error_message = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+    
+    # 关系
+    knowledge_base = relationship("KnowledgeBase", back_populates="documents")
+    user = relationship("User", backref="documents")
+    
+    def __repr__(self):
+        return f"<Document(id={self.id}, file_name={self.file_name}, kb_id={self.knowledge_base_id})>"

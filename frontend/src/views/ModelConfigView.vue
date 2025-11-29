@@ -69,12 +69,12 @@
           <!-- API 信息 -->
           <div class="space-y-2 mb-4">
             <div class="flex items-center text-sm">
-              <span class="text-gray-500 w-20">API:</span>
+              <span class="text-gray-500 w-20 flex-shrink-0">API:</span>
               <span class="text-gray-700 truncate">{{ model.api_base }}</span>
             </div>
-            <div class="flex items-center text-sm">
-              <span class="text-gray-500 w-20">Key:</span>
-              <code class="text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs">
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-gray-500 flex-shrink-0">Key:</span>
+              <code class="text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs truncate flex-1 min-w-0">
                 {{ model.api_key_masked }}
               </code>
             </div>

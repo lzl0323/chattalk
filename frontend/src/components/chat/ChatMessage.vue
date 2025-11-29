@@ -125,7 +125,7 @@
       
       <!-- 时间戳 -->
       <span class="text-xs text-gray-400 dark:text-gray-500 px-2">
-        {{ formatTime(message.timestamp) }}
+        {{ formatTime(message.created_at || message.timestamp) }}
       </span>
     </div>
     
@@ -221,18 +221,33 @@ const getImageUrl = (fileUrl) => {
     return url
   }
   
+  // 使用当前域名和端口构建URL
+  // 优先使用环境变量配置的后端地址（支持局域网访问）
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+  const baseUrl = API_BASE_URL || window.location.origin
+  
+  // 兼容旧格式：如果路径以 /ocr/ 开头但不是 /uploads/ocr/，添加 /uploads 前缀
+  if (url.startsWith('/ocr/')) {
+    return `${baseUrl}/uploads${url}`
+  }
+  
   // 如果以 / 开头，说明是相对于根路径的
   if (url.startsWith('/')) {
-    return `http://localhost:8000${url}`
+    return `${baseUrl}${url}`
   }
   
   // 如果以 uploads/ 开头，添加根路径和斜杠
   if (url.startsWith('uploads/')) {
-    return `http://localhost:8000/${url}`
+    return `${baseUrl}/${url}`
+  }
+  
+  // 如果以 ocr/ 开头（旧格式），添加 /uploads/ 前缀
+  if (url.startsWith('ocr/')) {
+    return `${baseUrl}/uploads/${url}`
   }
   
   // 否则添加 /uploads/ 前缀
-  return `http://localhost:8000/uploads/${url}`
+  return `${baseUrl}/uploads/${url}`
 }
 
 // 打开文件（在新标签页）
