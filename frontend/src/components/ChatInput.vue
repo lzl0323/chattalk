@@ -9,7 +9,7 @@
             v-model="inputMessage"
             :disabled="disabled"
             :placeholder="placeholder"
-            class="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition-all"
+            class="w-full px-4 py-3 pr-20 border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition-all"
             :class="{ 'border-red-500': error }"
             rows="1"
             @keydown.enter.exact.prevent="handleSend"
@@ -17,10 +17,15 @@
             @input="adjustHeight"
           ></textarea>
           
+          <!-- 语音输入按钮 -->
+          <div class="absolute bottom-2 right-2">
+            <VoiceInput @transcript="handleVoiceTranscript" />
+          </div>
+          
           <!-- 字符计数 -->
           <div
             v-if="inputMessage.length > 0"
-            class="absolute bottom-2 right-2 text-xs"
+            class="absolute bottom-2 right-16 text-xs"
             :class="inputMessage.length > 4000 ? 'text-red-500' : 'text-gray-400'"
           >
             {{ inputMessage.length }} / 4000
@@ -93,6 +98,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
+import VoiceInput from './chat/VoiceInput.vue'
 
 const props = defineProps({
   disabled: {
@@ -171,6 +177,24 @@ const handleSend = () => {
 const handleNewLine = () => {
   inputMessage.value += '\n'
   nextTick(adjustHeight)
+}
+
+// 处理语音识别结果
+const handleVoiceTranscript = (transcript) => {
+  // 将识别的文本追加到输入框
+  if (inputMessage.value) {
+    inputMessage.value += ' ' + transcript
+  } else {
+    inputMessage.value = transcript
+  }
+  
+  // 调整输入框高度
+  nextTick(adjustHeight)
+  
+  // 聚焦输入框
+  nextTick(() => {
+    textareaRef.value?.focus()
+  })
 }
 
 // 清除错误提示

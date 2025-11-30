@@ -191,8 +191,8 @@
         </div>
         
         <!-- 输入框容器 -->
-        <div class="relative bg-white dark:bg-gpt-dark-800 rounded-3xl shadow-lg dark:shadow-2xl border border-gray-200 dark:border-gpt-dark-600">
-          <div class="flex items-end gap-2 p-3">
+        <div class="relative bg-white dark:bg-gpt-dark-800 rounded-2xl shadow-md dark:shadow-xl border border-gray-200 dark:border-gpt-dark-600">
+          <div class="flex items-center gap-1.5 p-2">
             <!-- 文件上传组件 -->
             <FileUpload 
               @upload-success="handleFileUpload"
@@ -209,7 +209,7 @@
                 rows="1"
                 placeholder="发送消息..."
                 :disabled="isLoading"
-                class="w-full px-3 py-3 rounded-xl resize-none
+                class="w-full px-3 py-2 pr-14 rounded-xl resize-none
                        bg-transparent
                        text-gray-900 dark:text-gray-100 text-base
                        placeholder-gray-400 dark:placeholder-gray-500
@@ -219,13 +219,18 @@
                        custom-scrollbar"
                 style="max-height: 200px; min-height: 24px;"
               ></textarea>
+              
+              <!-- 语音输入按钮 -->
+              <div class="absolute top-1/2 right-3 -translate-y-1/2">
+                <VoiceInput @transcript="handleVoiceTranscript" />
+              </div>
             </div>
             
             <!-- 发送/停止按钮 -->
             <button
               @click="isLoading ? stopGeneration() : sendMessage()"
               :disabled="!canSend && !isLoading"
-              class="p-2.5 rounded-xl transition-all duration-200"
+              class="p-2 rounded-full transition-all duration-200"
               :class="isLoading
                 ? 'bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white'
                 : canSend 
@@ -234,18 +239,18 @@
               :title="isLoading ? '停止生成' : '发送消息'"
             >
               <!-- 停止图标 -->
-              <svg v-if="isLoading" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <svg v-if="isLoading" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 6h12v12H6z" />
               </svg>
               <!-- 发送图标 -->
-              <svg v-else class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <svg v-else class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
               </svg>
             </button>
           </div>
           
           <!-- 字符计数（内嵌） -->
-          <div v-if="inputMessage.length > 0" class="px-4 pb-2">
+          <div v-if="inputMessage.length > 0" class="px-3 pb-1.5">
             <div class="text-xs text-gray-400 dark:text-gray-500 text-right">
               {{ inputMessage.length }} / 4000
             </div>
@@ -269,6 +274,7 @@ import { getSuggestions, chatStream } from '@/services/api'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import FileUpload from '@/components/chat/FileUpload.vue'
 import SearchModeSelector from '@/components/chat/SearchModeSelector.vue'
+import VoiceInput from '@/components/chat/VoiceInput.vue'
 
 // Stores
 const chatStore = useChatStore()
@@ -384,6 +390,24 @@ const autoResizeTextarea = () => {
 const handleShiftEnter = () => {
   // Shift+Enter 允许换行
   autoResizeTextarea()
+}
+
+// 处理语音识别结果
+const handleVoiceTranscript = (transcript) => {
+  // 将识别的文本追加到输入框
+  if (inputMessage.value) {
+    inputMessage.value += ' ' + transcript
+  } else {
+    inputMessage.value = transcript
+  }
+  
+  // 调整输入框高度
+  autoResizeTextarea()
+  
+  // 聚焦输入框
+  nextTick(() => {
+    inputTextarea.value?.focus()
+  })
 }
 
 const sendMessage = async () => {

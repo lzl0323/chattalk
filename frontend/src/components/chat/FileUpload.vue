@@ -27,7 +27,7 @@
       class="upload-btn"
       title="上传图片或 PDF"
     >
-      <svg v-if="!uploading" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg v-if="!uploading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
               d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
       </svg>
@@ -176,8 +176,8 @@ const uploadFile = async (file, mode) => {
 }
 
 .upload-btn {
-  padding: 0.625rem;
-  border-radius: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
   transition: all 0.2s;
   background-color: transparent;
   color: #6b7280;
@@ -203,8 +203,8 @@ const uploadFile = async (file, mode) => {
 }
 
 .spinner {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1rem;
+  height: 1rem;
   border: 2px solid #e5e7eb;
   border-top-color: #3b82f6;
   border-radius: 50%;
