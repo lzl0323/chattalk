@@ -143,7 +143,7 @@
       <div v-else class="max-w-3xl mx-auto space-y-6">
         <ChatMessage
           v-for="(message, index) in messages"
-          :key="index"
+          :key="message.id"
           :message="message"
           :is-streaming="message.isStreaming"
           :is-selected="isMessageSelected(message.id)"
@@ -360,12 +360,24 @@ watch(searchMode, (newMode) => {
 // 计算属性
 const messages = computed(() => {
   // 过滤掉包含 OCR 标签的用户消息（自动发送给模型的 OCR 内容）
-  return chatStore.messages.filter(msg => {
+  const filtered = chatStore.messages.filter(msg => {
     if (msg.role === 'user' && msg.content) {
       // 检查是否包含 OCR 标签
       return !msg.content.includes('<|ref]>') && !msg.content.includes('<|det]>')
     }
     return true
+  })
+  
+  // 确保每条消息都有唯一的 id
+  return filtered.map((msg, index) => {
+    if (!msg.id) {
+      // 如果消息没有 id，生成一个唯一 id
+      return {
+        ...msg,
+        id: `msg-${chatStore.currentConversation?.id || 'temp'}-${index}-${msg.created_at || Date.now()}`
+      }
+    }
+    return msg
   })
 })
 const models = computed(() => modelStore.models)

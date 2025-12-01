@@ -30,9 +30,9 @@ export function useSelection(containerRef: any) {
     // 只响应左键
     if (e.button !== 0) return
     
-    // 如果点击的是消息内容，不启动框选
+    // 如果点击的是消息元素或其内部，不启动框选（让消息自己的点击事件处理）
     const target = e.target as HTMLElement
-    if (target.closest('.chat-message-content')) return
+    if (target.closest('[data-message-id]')) return
 
     isSelecting.value = true
     const container = containerRef.value

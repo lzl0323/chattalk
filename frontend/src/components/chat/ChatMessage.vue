@@ -260,11 +260,16 @@ const getImageUrl = (fileUrl) => {
 
 // 消息点击处理
 const handleMessageClick = (event) => {
+  // 阻止事件冒泡，防止触发容器的框选
+  event.stopPropagation()
   emit('messageClick', props.message.id, event)
 }
 
 // 右键菜单处理
 const handleContextMenu = (event) => {
+  // 阻止事件冒泡和默认行为
+  event.stopPropagation()
+  event.preventDefault()
   emit('messageContextMenu', props.message.id, event)
 }
 
