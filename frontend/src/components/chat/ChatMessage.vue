@@ -1,9 +1,13 @@
 <template>
   <div
+    :data-message-id="message.id"
     :class="[
-      'flex gap-4',
-      message.role === 'user' ? 'justify-end' : 'justify-start'
+      'flex gap-4 message-wrapper transition-all duration-200 rounded-lg px-3 py-2 -mx-3',
+      message.role === 'user' ? 'justify-end' : 'justify-start',
+      isSelected && 'message-selected'
     ]"
+    @click="handleMessageClick"
+    @contextmenu="handleContextMenu"
   >
     <!-- AI 头像 -->
     <div
@@ -193,11 +197,15 @@ const props = defineProps({
   isStreaming: {
     type: Boolean,
     default: false
+  },
+  isSelected: {
+    type: Boolean,
+    default: false
   }
 })
 
 // Emits
-defineEmits(['copy', 'regenerate', 'delete'])
+const emit = defineEmits(['copy', 'regenerate', 'delete', 'messageClick', 'messageContextMenu'])
 
 // 图片预览
 const showImagePreview = ref(false)
@@ -248,6 +256,16 @@ const getImageUrl = (fileUrl) => {
   
   // 否则添加 /uploads/ 前缀
   return `${baseUrl}/uploads/${url}`
+}
+
+// 消息点击处理
+const handleMessageClick = (event) => {
+  emit('messageClick', props.message.id, event)
+}
+
+// 右键菜单处理
+const handleContextMenu = (event) => {
+  emit('messageContextMenu', props.message.id, event)
 }
 
 // 打开文件（在新标签页）
@@ -499,5 +517,29 @@ const formatTime = (timestamp) => {
 
 .close-btn:hover {
   @apply transform scale-110;
+}
+
+/* 消息选中状态样式 */
+.message-wrapper {
+  cursor: pointer;
+  user-select: none;
+}
+
+.message-wrapper:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.dark .message-wrapper:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.message-selected {
+  background-color: rgba(33, 150, 243, 0.1) !important;
+  border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.dark .message-selected {
+  background-color: rgba(33, 150, 243, 0.15) !important;
+  border-color: rgba(33, 150, 243, 0.4);
 }
 </style>

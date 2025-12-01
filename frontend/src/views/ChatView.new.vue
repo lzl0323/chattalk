@@ -85,9 +85,18 @@
     <!-- 消息区域 -->
     <div
       ref="messagesContainer"
-      class="flex-1 overflow-y-auto px-4 py-6"
+      class="flex-1 overflow-y-auto px-4 py-6 relative"
       @scroll="handleScroll"
+      @mousedown="startSelection"
+      @mousemove="updateSelection"
+      @mouseup="endSelection"
+      @mouseleave="endSelection"
     >
+      <!-- 选择框图层 -->
+      <SelectionLayer
+        :is-selecting="isSelecting"
+        :selection-rect="selectionRect"
+      />
       <!-- 空状态：欢迎界面 -->
       <div v-if="messages.length === 0" class="flex-1 flex flex-col items-center justify-center px-4 pb-32">
         <div class="text-center max-w-3xl w-full">
@@ -137,9 +146,12 @@
           :key="index"
           :message="message"
           :is-streaming="message.isStreaming"
+          :is-selected="isMessageSelected(message.id)"
           @regenerate="regenerateMessage(index)"
           @copy="copyMessage(message.content)"
           @delete="deleteMessage(index)"
+          @message-click="toggleMessageSelection"
+          @message-context-menu="handleShowContextMenu"
         />
         
         <!-- 推荐问题卡片 -->
@@ -263,6 +275,17 @@
         </p>
       </div>
     </div>
+
+    <!-- 右键菜单 -->
+    <ChatContextMenu
+      :show="!!contextMenuPosition"
+      :position="contextMenuPosition"
+      :selected-count="selectedCount"
+      @export-markdown="handleExportMarkdown"
+      @export-pdf="handleExportPdf"
+      @clear-selection="clearSelection"
+      @close="hideContextMenu"
+    />
   </div>
 </template>
 
@@ -275,6 +298,11 @@ import ChatMessage from '@/components/chat/ChatMessage.vue'
 import FileUpload from '@/components/chat/FileUpload.vue'
 import SearchModeSelector from '@/components/chat/SearchModeSelector.vue'
 import VoiceInput from '@/components/chat/VoiceInput.vue'
+import SelectionLayer from '@/components/chat/SelectionLayer.vue'
+import ChatContextMenu from '@/components/chat/ChatContextMenu.vue'
+import { useSelection } from '@/composables/useSelection'
+import { exportMarkdown } from '@/utils/exportMarkdown'
+import { exportPdf } from '@/utils/exportPdf'
 
 // Stores
 const chatStore = useChatStore()
@@ -288,6 +316,23 @@ const toggleSidebar = inject('toggleSidebar', null)
 const messagesContainer = ref(null)
 const inputTextarea = ref(null)
 const titleInput = ref(null)
+
+// 消息选择功能
+const {
+  isSelecting,
+  selectionRect,
+  contextMenuPosition,
+  selectedCount,
+  selectedIdList,
+  startSelection,
+  updateSelection,
+  endSelection,
+  toggleMessageSelection,
+  showContextMenu: showCtxMenu,
+  hideContextMenu,
+  clearSelection,
+  isMessageSelected
+} = useSelection(messagesContainer)
 
 // 状态
 const inputMessage = ref('')
@@ -873,6 +918,58 @@ const checkKnowledgeBaseStatus = async () => {
   } catch (error) {
     console.error('检查知识库状态失败:', error)
     hasKnowledgeBase.value = false
+  }
+}
+
+// 消息导出功能
+const handleShowContextMenu = (messageId, e) => {
+  showCtxMenu(e, messageId)
+}
+
+const getSelectedMessages = () => {
+  return messages.value.filter(msg => selectedIdList.value.includes(msg.id))
+}
+
+const handleExportMarkdown = () => {
+  const selectedMessages = getSelectedMessages()
+  if (selectedMessages.length === 0) {
+    showToast?.('请先选择要导出的消息', 'warning')
+    return
+  }
+
+  try {
+    exportMarkdown(selectedMessages, {
+      title: conversationTitle.value,
+      filename: `${conversationTitle.value}-${Date.now()}.md`,
+      includeTimestamp: true
+    })
+    showToast?.(`已导出 ${selectedMessages.length} 条消息为 Markdown`, 'success')
+  } catch (error) {
+    console.error('Markdown 导出失败:', error)
+    showToast?.('导出失败，请查看控制台', 'error')
+  }
+}
+
+const handleExportPdf = async () => {
+  const selectedMessages = getSelectedMessages()
+  if (selectedMessages.length === 0) {
+    showToast?.('请先选择要导出的消息', 'warning')
+    return
+  }
+
+  try {
+    showToast?.('正在生成 PDF，请稍候...', 'info')
+    await exportPdf(selectedMessages, {
+      title: conversationTitle.value,
+      filename: `${conversationTitle.value}-${Date.now()}.pdf`,
+      pageSize: 'A4',
+      orientation: 'portrait',
+      includeTimestamp: true
+    })
+    showToast?.(`已导出 ${selectedMessages.length} 条消息为 PDF`, 'success')
+  } catch (error) {
+    console.error('PDF 导出失败:', error)
+    showToast?.('PDF 导出失败，请查看控制台', 'error')
   }
 }
 
